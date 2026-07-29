@@ -1,0 +1,43 @@
+Package: SCRNAnalysis
+Type: Package
+Title: Single-Cell RNA-Seq Analysis, Clustering and Annotation
+Version: 0.99.0
+Authors@R: person("Giuseppe", "Bocci", email = "giuseppe.bocci@mail.test.it", role = c("aut","cre"))
+Description: Defines a ScDeconvExperiment class extending
+    SingleCellExperiment and provides tools for single-cell RNA-seq
+    exploratory analysis, quality control, highly variable gene selection,
+    clustering, cell type annotation, and visualization of cluster-cell type
+    relationships.
+License: MIT + file LICENSE.md
+Encoding: UTF-8
+LazyData: true
+Roxygen: list(markdown = TRUE)
+Depends:
+  R (>= 4.2.0)
+Imports:
+  methods,
+  stats,
+  SingleCellExperiment,
+  SummarizedExperiment,
+  S4Vectors,
+  scater,
+  scran,
+  igraph,
+  SingleR,
+  ggplot2,
+  utils,
+  rlang,
+  Matrix,
+  Seurat,
+  celldex,
+  ggalluvial,
+  ggdendro,
+  pheatmap,
+  testthat (>= 3.0.0),
+  knitr,
+  rmarkdown,
+  BiocStyle
+Config/testthat/edition: 3
+VignetteBuilder: knitr
+biocViews: SingleCell, RNASeq, GeneExpression, Clustering, Visualization
+Config/roxygen2/version: 8.0.0

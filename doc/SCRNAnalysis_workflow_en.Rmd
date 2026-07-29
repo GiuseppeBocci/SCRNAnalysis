@@ -1,0 +1,293 @@
+---
+title: "SCRNAnalysis workflow with Seurat data"
+author: "Giuseppe Bocci"
+date: "`r Sys.Date()`"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    number_sections: false
+vignette: >
+  %\VignetteIndexEntry{SCRNAnalysis workflow with Seurat data}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>",
+  fig.width = 7,
+  fig.height = 5
+)
+
+required_packages <- c(
+  "SCRNAnalysis",
+  "Seurat",
+  "SeuratObject",
+  "SingleCellExperiment",
+  "SummarizedExperiment",
+  "S4Vectors",
+  "scater",
+  "ggplot2",
+  "ggdendro",
+  "ggalluvial"
+)
+
+packages_available <- vapply(required_packages, requireNamespace, logical(1), quietly = TRUE)
+workflow_eval <- all(packages_available)
+```
+
+```{r missing-packages, echo=FALSE, results='asis'}
+if (!workflow_eval) {
+  missing_packages <- names(packages_available)[!packages_available]
+  cat(
+    "> Some chunks are not evaluated because the following packages are missing: ",
+    paste(missing_packages, collapse = ", "),
+    ".\n\n",
+    sep = ""
+  )
+}
+```
+
+# Introduction
+
+This vignette shows a complete `SCRNAnalysis` workflow using `pbmc_small`, a small dataset included in `Seurat`. The dataset is used as a lightweight example to demonstrate the main analysis steps without requiring external downloads.
+
+The workflow includes:
+
+1. loading data from a `Seurat` object;
+2. converting the data to `SingleCellExperiment`;
+3. creating a `ScDeconvExperiment` object;
+4. filtering genes and cells;
+5. normalizing counts and applying a log-transform;
+6. selecting highly variable genes;
+7. clustering cells;
+8. annotating cells using Seurat label transfer;
+9. comparing clusters with predicted cell-type labels;
+10. visualizing the relationship between clusters and annotations.
+
+`pbmc_small` is suitable for a vignette because it is very small. The labels stored in its metadata are used here only to demonstrate the workflow.
+
+# Load packages
+
+```{r packages, eval=workflow_eval, message=FALSE, warning=FALSE}
+library(SCRNAnalysis)
+library(SingleCellExperiment)
+library(SummarizedExperiment)
+library(S4Vectors)
+```
+
+# Load Seurat data
+
+`pbmc_small` is a `Seurat` object included in the `Seurat` package. In this vignette, it is used both as the source of query counts and as an annotated reference for label transfer.
+
+```{r load-seurat-data, eval=workflow_eval, message=FALSE, warning=FALSE}
+pbmc_small <- SeuratObject::pbmc_small
+reference <- Seurat::UpdateSeuratObject(pbmc_small)
+reference
+```
+
+The object metadata contains columns that can be used as known labels. Here, `letter.idents` is used as the reference label column.
+
+```{r inspect-reference-labels, eval=workflow_eval}
+head(reference[[]])
+table(reference$letter.idents)
+```
+
+To make the reference usable for Seurat label transfer, we apply minimal preprocessing.
+
+```{r preprocess-reference, eval=workflow_eval, message=FALSE, warning=FALSE}
+reference <- Seurat::NormalizeData(reference, verbose = FALSE)
+reference <- Seurat::FindVariableFeatures(reference, verbose = FALSE)
+reference <- Seurat::ScaleData(reference, verbose = FALSE)
+reference <- Seurat::RunPCA(reference, verbose = FALSE)
+```
+
+# Create a `ScDeconvExperiment` object
+
+The `ScDeconvExperiment()` constructor defined in the package expects a `SingleCellExperiment` object containing a `counts` assay. For this reason, we first extract the counts from the `Seurat` object, then create a `SingleCellExperiment`, and finally convert it to the package-specific class.
+
+The helper function `get_seurat_assay_data()` keeps the code compatible with both Seurat v5, which uses `layer`, and earlier versions, which use `slot`.
+
+```{r create-object, eval=workflow_eval, message=FALSE, warning=FALSE}
+get_seurat_assay_data <- function(x, assay = SeuratObject::DefaultAssay(x), layer = "counts") {
+  tryCatch(
+    SeuratObject::GetAssayData(x, assay = assay, layer = layer),
+    error = function(e) SeuratObject::GetAssayData(x, assay = assay, slot = layer)
+  )
+}
+
+counts <- get_seurat_assay_data(reference, assay = "RNA", layer = "counts")
+query_sce <- SingleCellExperiment::SingleCellExperiment(assays = list(counts = counts))
+query <- ScDeconvExperiment(query_sce)
+query
+
+dim(SummarizedExperiment::assay(query, "counts"))
+```
+
+# Filter genes and cells
+
+The first quality-control step removes genes expressed in too few cells. The second step removes cells with an abnormal number of detected genes, using percentile-based thresholds.
+
+```{r quality-control, eval=workflow_eval}
+query <- filterLowExpressionGenes(
+  query,
+  assay_name = "counts",
+  min_count = 1,
+  lower_percentile = 0.01
+)
+query <- filterCellsByDetectedGenes(
+  query,
+  assay_name = "counts",
+  min_count = 1,
+  lower_percentile = 0.01,
+  upper_percentile = 0.99
+)
+query@params$filterLowExpressionGenes
+query@params$filterCellsByDetectedGenes
+dim(SummarizedExperiment::assay(query, "counts"))
+```
+
+The metrics computed during filtering are stored in `rowData()` and `colData()`.
+
+```{r qc-metadata, eval=workflow_eval}
+head(SummarizedExperiment::rowData(query))
+head(SummarizedExperiment::colData(query))
+```
+
+# Normalize counts and apply a log-transform
+
+After filtering, counts are normalized to a total of 10,000 counts per cell and stored in `normcounts`. A log-transform is then applied and stored in `logcounts`.
+
+```{r normalization, eval=workflow_eval}
+query <- normalizeToTotal(query, target_total = 1e4)
+query <- logTransform(query, assay_name = "normcounts", pseudo_count = 1, base = 2)
+
+SummarizedExperiment::assayNames(query)
+head(SummarizedExperiment::colData(query)$library_size)
+```
+
+# Select highly variable genes
+
+Highly variable genes are selected from the `logcounts` assay. Since this example dataset is small, we select at most 100 genes.
+
+```{r hvg, eval=workflow_eval}
+n_hvg <- min(100, nrow(query))
+query <- identifyHVGs(query, assay_name = "logcounts", n_top = n_hvg, method = "dispersion")
+
+table(SummarizedExperiment::rowData(query)$is_hvg)
+head(SummarizedExperiment::rowData(query)[order(SummarizedExperiment::rowData(query)$hvg_rank), ])
+```
+
+# Cluster cells
+
+`performClustering()` first computes a PCA using `scater::runPCA()` and then applies the selected clustering algorithm. Here, k-means clustering is used with seven clusters so that the comparison plots show a more detailed relationship with the reference annotations.
+
+```{r clustering, eval=workflow_eval, message=FALSE, warning=FALSE}
+n_pcs <- min(5, ncol(query) - 1, sum(SummarizedExperiment::rowData(query)$is_hvg) - 1)
+n_pcs <- max(2, n_pcs)
+
+query <- performClustering(
+  object = query,
+  assay_name = "logcounts",
+  algorithm = "kmeans",
+  use_hvg = TRUE,
+  n_hvg = n_hvg,
+  n_pcs = n_pcs,
+  n_clusters = 7,
+  cluster_column = "cluster",
+  pca_name = "PCA"
+)
+
+table(SummarizedExperiment::colData(query)$cluster)
+```
+
+# Annotate cells with Seurat
+
+Cell labels are transferred from the Seurat reference to the query object. `performDeconvolution()` stores the predicted labels in `colData(query)$seurat_label` and the maximum prediction score in `colData(query)$seurat_label_score`.
+
+```{r seurat-annotation, eval=workflow_eval, message=FALSE, warning=FALSE}
+dims <- seq_len(min(10, ncol(SeuratObject::Embeddings(reference, "pca"))))
+
+query <- performDeconvolution(
+  object = query,
+  reference = reference,
+  flavour = "seurat",
+  reference_label_column = "letter.idents",
+  label_column = "seurat_label",
+  dims = dims
+)
+
+table(SummarizedExperiment::colData(query)$seurat_label)
+summary(SummarizedExperiment::colData(query)$seurat_label_score)
+```
+
+# Compare clusters and cell-type labels
+
+`compareClusterCellTypes()` builds a contingency table between the computed clusters and the predicted cell-type labels. The result is stored in `metadata(query)$cluster_cell_type_comparison`.
+
+```{r cluster-cell-type-comparison, eval=workflow_eval}
+query <- compareClusterCellTypes(
+  object = query,
+  cluster_column = "cluster",
+  cell_type_column = "seurat_label",
+  metadata_name = "cluster_cell_type_comparison"
+)
+
+comparison <- S4Vectors::metadata(query)$cluster_cell_type_comparison
+head(comparison$long_table)
+```
+
+# Visualize the results
+
+The package provides three plotting functions to explore the relationship between clusters and annotations.
+
+```{r heatmap, eval=workflow_eval, message=FALSE, warning=FALSE}
+plotClusterCellTypeHeatmap(query, metadata_name = "cluster_cell_type_comparison", value = "row_proportions")
+```
+
+```{r dendrogram, eval=workflow_eval, message=FALSE, warning=FALSE}
+plotClusterCellTypeDendrogram(query, metadata_name = "cluster_cell_type_comparison", value = "row_proportions", margin = "clusters")
+```
+
+```{r alluvial, eval=workflow_eval, message=FALSE, warning=FALSE}
+plotClusterCellTypeAlluvial(query, metadata_name = "cluster_cell_type_comparison")
+```
+
+# Workflow history and parameters
+
+The `ScDeconvExperiment` class keeps track of the parameters used by the workflow and of the analysis steps that were executed. This helps make the workflow more reproducible.
+
+```{r workflow-history, eval=workflow_eval}
+query@history
+str(query@params, max.level = 2)
+```
+
+# SingleR alternative
+
+The workflow above uses `flavour = "seurat"`. The same function can also be used with `flavour = "singler"`, provided that the reference is a `SummarizedExperiment` or `SingleCellExperiment` object with an annotation column in `colData()`.
+
+This chunk is not evaluated by default because the main vignette uses Seurat, but it shows the equivalent call for SingleR.
+
+```{r singler-alternative, eval=FALSE}
+reference_sce <- Seurat::as.SingleCellExperiment(reference)
+
+if (!"logcounts" %in% SummarizedExperiment::assayNames(reference_sce)) {
+  ref_logcounts <- get_seurat_assay_data(reference, assay = "RNA", layer = "data")
+  SummarizedExperiment::assay(reference_sce, "logcounts") <- ref_logcounts
+}
+
+SummarizedExperiment::colData(reference_sce)$cell_type <- reference$letter.idents
+
+query <- performDeconvolution(
+  object = query,
+  reference = reference_sce,
+  flavour = "singler",
+  reference_label_column = "cell_type",
+  assay_name = "logcounts",
+  ref_assay_name = "logcounts",
+  label_column = "singler_label"
+)
+
+table(SummarizedExperiment::colData(query)$singler_label)
+```

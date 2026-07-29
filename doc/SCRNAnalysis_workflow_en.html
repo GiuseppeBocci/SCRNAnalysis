@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Giuseppe Bocci" />
+
+<meta name="date" content="2026-07-30" />
+
+<title>SCRNAnalysis workflow with Seurat data</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">SCRNAnalysis workflow with Seurat data</h1>
+<h4 class="author">Giuseppe Bocci</h4>
+<h4 class="date">2026-07-30</h4>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#introduction" id="toc-introduction">Introduction</a></li>
+<li><a href="#load-packages" id="toc-load-packages">Load
+packages</a></li>
+<li><a href="#load-seurat-data" id="toc-load-seurat-data">Load Seurat
+data</a></li>
+<li><a href="#create-a-scdeconvexperiment-object" id="toc-create-a-scdeconvexperiment-object">Create a
+<code>ScDeconvExperiment</code> object</a></li>
+<li><a href="#filter-genes-and-cells" id="toc-filter-genes-and-cells">Filter genes and cells</a></li>
+<li><a href="#normalize-counts-and-apply-a-log-transform" id="toc-normalize-counts-and-apply-a-log-transform">Normalize counts and
+apply a log-transform</a></li>
+<li><a href="#select-highly-variable-genes" id="toc-select-highly-variable-genes">Select highly variable
+genes</a></li>
+<li><a href="#cluster-cells" id="toc-cluster-cells">Cluster
+cells</a></li>
+<li><a href="#annotate-cells-with-seurat" id="toc-annotate-cells-with-seurat">Annotate cells with Seurat</a></li>
+<li><a href="#compare-clusters-and-cell-type-labels" id="toc-compare-clusters-and-cell-type-labels">Compare clusters and
+cell-type labels</a></li>
+<li><a href="#visualize-the-results" id="toc-visualize-the-results">Visualize the results</a></li>
+<li><a href="#workflow-history-and-parameters" id="toc-workflow-history-and-parameters">Workflow history and
+parameters</a></li>
+<li><a href="#singler-alternative" id="toc-singler-alternative">SingleR
+alternative</a></li>
+</ul>
+</div>
+
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>This vignette shows a complete <code>SCRNAnalysis</code> workflow
+using <code>pbmc_small</code>, a small dataset included in
+<code>Seurat</code>. The dataset is used as a lightweight example to
+demonstrate the main analysis steps without requiring external
+downloads.</p>
+<p>The workflow includes:</p>
+<ol style="list-style-type: decimal">
+<li>loading data from a <code>Seurat</code> object;</li>
+<li>converting the data to <code>SingleCellExperiment</code>;</li>
+<li>creating a <code>ScDeconvExperiment</code> object;</li>
+<li>filtering genes and cells;</li>
+<li>normalizing counts and applying a log-transform;</li>
+<li>selecting highly variable genes;</li>
+<li>clustering cells;</li>
+<li>annotating cells using Seurat label transfer;</li>
+<li>comparing clusters with predicted cell-type labels;</li>
+<li>visualizing the relationship between clusters and annotations.</li>
+</ol>
+<p><code>pbmc_small</code> is suitable for a vignette because it is very
+small. The labels stored in its metadata are used here only to
+demonstrate the workflow.</p>
+</div>
+<div id="load-packages" class="section level1">
+<h1>Load packages</h1>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(SCRNAnalysis)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(SingleCellExperiment)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">library</span>(SummarizedExperiment)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="fu">library</span>(S4Vectors)</span></code></pre></div>
+</div>
+<div id="load-seurat-data" class="section level1">
+<h1>Load Seurat data</h1>
+<p><code>pbmc_small</code> is a <code>Seurat</code> object included in
+the <code>Seurat</code> package. In this vignette, it is used both as
+the source of query counts and as an annotated reference for label
+transfer.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>pbmc_small <span class="ot">&lt;-</span> SeuratObject<span class="sc">::</span>pbmc_small</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>reference <span class="ot">&lt;-</span> Seurat<span class="sc">::</span><span class="fu">UpdateSeuratObject</span>(pbmc_small)</span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>reference</span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a><span class="co">#&gt; An object of class Seurat </span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a><span class="co">#&gt; 230 features across 80 samples within 1 assay </span></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co">#&gt; Active assay: RNA (230 features, 20 variable features)</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a><span class="co">#&gt;  3 layers present: counts, data, scale.data</span></span>
+<span id="cb2-8"><a href="#cb2-8" tabindex="-1"></a><span class="co">#&gt;  2 dimensional reductions calculated: pca, tsne</span></span></code></pre></div>
+<p>The object metadata contains columns that can be used as known
+labels. Here, <code>letter.idents</code> is used as the reference label
+column.</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">head</span>(reference[[]])</span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a><span class="co">#&gt;                   orig.ident nCount_RNA nFeature_RNA RNA_snn_res.0.8</span></span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a><span class="co">#&gt; ATGCCAGAACGACT SeuratProject         70           47               0</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a><span class="co">#&gt; CATGGCCTGTGCAT SeuratProject         85           52               0</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a><span class="co">#&gt; GAACCTGATGAACC SeuratProject         87           50               1</span></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a><span class="co">#&gt; TGACTGGATTCTCA SeuratProject        127           56               0</span></span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a><span class="co">#&gt; AGTCAGACTGCACA SeuratProject        173           53               0</span></span>
+<span id="cb3-8"><a href="#cb3-8" tabindex="-1"></a><span class="co">#&gt; TCTGATACACGTGT SeuratProject         70           48               0</span></span>
+<span id="cb3-9"><a href="#cb3-9" tabindex="-1"></a><span class="co">#&gt;                letter.idents groups RNA_snn_res.1</span></span>
+<span id="cb3-10"><a href="#cb3-10" tabindex="-1"></a><span class="co">#&gt; ATGCCAGAACGACT             A     g2             0</span></span>
+<span id="cb3-11"><a href="#cb3-11" tabindex="-1"></a><span class="co">#&gt; CATGGCCTGTGCAT             A     g1             0</span></span>
+<span id="cb3-12"><a href="#cb3-12" tabindex="-1"></a><span class="co">#&gt; GAACCTGATGAACC             B     g2             0</span></span>
+<span id="cb3-13"><a href="#cb3-13" tabindex="-1"></a><span class="co">#&gt; TGACTGGATTCTCA             A     g2             0</span></span>
+<span id="cb3-14"><a href="#cb3-14" tabindex="-1"></a><span class="co">#&gt; AGTCAGACTGCACA             A     g2             0</span></span>
+<span id="cb3-15"><a href="#cb3-15" tabindex="-1"></a><span class="co">#&gt; TCTGATACACGTGT             A     g1             0</span></span>
+<span id="cb3-16"><a href="#cb3-16" tabindex="-1"></a><span class="fu">table</span>(reference<span class="sc">$</span>letter.idents)</span>
+<span id="cb3-17"><a href="#cb3-17" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb3-18"><a href="#cb3-18" tabindex="-1"></a><span class="co">#&gt;  A  B </span></span>
+<span id="cb3-19"><a href="#cb3-19" tabindex="-1"></a><span class="co">#&gt; 53 27</span></span></code></pre></div>
+<p>To make the reference usable for Seurat label transfer, we apply
+minimal preprocessing.</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a>reference <span class="ot">&lt;-</span> Seurat<span class="sc">::</span><span class="fu">NormalizeData</span>(reference, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a>reference <span class="ot">&lt;-</span> Seurat<span class="sc">::</span><span class="fu">FindVariableFeatures</span>(reference, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>reference <span class="ot">&lt;-</span> Seurat<span class="sc">::</span><span class="fu">ScaleData</span>(reference, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>reference <span class="ot">&lt;-</span> Seurat<span class="sc">::</span><span class="fu">RunPCA</span>(reference, <span class="at">verbose =</span> <span class="cn">FALSE</span>)</span></code></pre></div>
+</div>
+<div id="create-a-scdeconvexperiment-object" class="section level1">
+<h1>Create a <code>ScDeconvExperiment</code> object</h1>
+<p>The <code>ScDeconvExperiment()</code> constructor defined in the
+package expects a <code>SingleCellExperiment</code> object containing a
+<code>counts</code> assay. For this reason, we first extract the counts
+from the <code>Seurat</code> object, then create a
+<code>SingleCellExperiment</code>, and finally convert it to the
+package-specific class.</p>
+<p>The helper function <code>get_seurat_assay_data()</code> keeps the
+code compatible with both Seurat v5, which uses <code>layer</code>, and
+earlier versions, which use <code>slot</code>.</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a>get_seurat_assay_data <span class="ot">&lt;-</span> <span class="cf">function</span>(x, <span class="at">assay =</span> SeuratObject<span class="sc">::</span><span class="fu">DefaultAssay</span>(x), <span class="at">layer =</span> <span class="st">&quot;counts&quot;</span>) {</span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>  <span class="fu">tryCatch</span>(</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>    SeuratObject<span class="sc">::</span><span class="fu">GetAssayData</span>(x, <span class="at">assay =</span> assay, <span class="at">layer =</span> layer),</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>    <span class="at">error =</span> <span class="cf">function</span>(e) SeuratObject<span class="sc">::</span><span class="fu">GetAssayData</span>(x, <span class="at">assay =</span> assay, <span class="at">slot =</span> layer)</span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>  )</span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>}</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a>counts <span class="ot">&lt;-</span> <span class="fu">get_seurat_assay_data</span>(reference, <span class="at">assay =</span> <span class="st">&quot;RNA&quot;</span>, <span class="at">layer =</span> <span class="st">&quot;counts&quot;</span>)</span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a>query_sce <span class="ot">&lt;-</span> SingleCellExperiment<span class="sc">::</span><span class="fu">SingleCellExperiment</span>(<span class="at">assays =</span> <span class="fu">list</span>(<span class="at">counts =</span> counts))</span>
+<span id="cb5-10"><a href="#cb5-10" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">ScDeconvExperiment</span>(query_sce)</span>
+<span id="cb5-11"><a href="#cb5-11" tabindex="-1"></a>query</span>
+<span id="cb5-12"><a href="#cb5-12" tabindex="-1"></a><span class="co">#&gt; class: ScDeconvExperiment </span></span>
+<span id="cb5-13"><a href="#cb5-13" tabindex="-1"></a><span class="co">#&gt; dim: 230 80 </span></span>
+<span id="cb5-14"><a href="#cb5-14" tabindex="-1"></a><span class="co">#&gt; metadata(0):</span></span>
+<span id="cb5-15"><a href="#cb5-15" tabindex="-1"></a><span class="co">#&gt; assays(1): counts</span></span>
+<span id="cb5-16"><a href="#cb5-16" tabindex="-1"></a><span class="co">#&gt; rownames(230): MS4A1 CD79B ... SPON2 S100B</span></span>
+<span id="cb5-17"><a href="#cb5-17" tabindex="-1"></a><span class="co">#&gt; rowData names(0):</span></span>
+<span id="cb5-18"><a href="#cb5-18" tabindex="-1"></a><span class="co">#&gt; colnames(80): ATGCCAGAACGACT CATGGCCTGTGCAT ... GGAACACTTCAGAC</span></span>
+<span id="cb5-19"><a href="#cb5-19" tabindex="-1"></a><span class="co">#&gt;   CTTGATTGATCTTC</span></span>
+<span id="cb5-20"><a href="#cb5-20" tabindex="-1"></a><span class="co">#&gt; colData names(0):</span></span>
+<span id="cb5-21"><a href="#cb5-21" tabindex="-1"></a><span class="co">#&gt; reducedDimNames(0):</span></span>
+<span id="cb5-22"><a href="#cb5-22" tabindex="-1"></a><span class="co">#&gt; mainExpName: NULL</span></span>
+<span id="cb5-23"><a href="#cb5-23" tabindex="-1"></a><span class="co">#&gt; altExpNames(0):</span></span>
+<span id="cb5-24"><a href="#cb5-24" tabindex="-1"></a></span>
+<span id="cb5-25"><a href="#cb5-25" tabindex="-1"></a><span class="fu">dim</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">assay</span>(query, <span class="st">&quot;counts&quot;</span>))</span>
+<span id="cb5-26"><a href="#cb5-26" tabindex="-1"></a><span class="co">#&gt; [1] 230  80</span></span></code></pre></div>
+</div>
+<div id="filter-genes-and-cells" class="section level1">
+<h1>Filter genes and cells</h1>
+<p>The first quality-control step removes genes expressed in too few
+cells. The second step removes cells with an abnormal number of detected
+genes, using percentile-based thresholds.</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">filterLowExpressionGenes</span>(</span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>  query,</span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="at">assay_name =</span> <span class="st">&quot;counts&quot;</span>,</span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="at">min_count =</span> <span class="dv">1</span>,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>  <span class="at">lower_percentile =</span> <span class="fl">0.01</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>)</span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">filterCellsByDetectedGenes</span>(</span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>  query,</span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>  <span class="at">assay_name =</span> <span class="st">&quot;counts&quot;</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>  <span class="at">min_count =</span> <span class="dv">1</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>  <span class="at">lower_percentile =</span> <span class="fl">0.01</span>,</span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>  <span class="at">upper_percentile =</span> <span class="fl">0.99</span></span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>)</span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>query<span class="sc">@</span>params<span class="sc">$</span>filterLowExpressionGenes</span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a><span class="co">#&gt; $assay_name</span></span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a><span class="co">#&gt; [1] &quot;counts&quot;</span></span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a><span class="co">#&gt; $min_count</span></span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a><span class="co">#&gt; [1] 1</span></span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a><span class="co">#&gt; $lower_percentile</span></span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a><span class="co">#&gt; [1] 0.01</span></span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a><span class="co">#&gt; $min_cells</span></span>
+<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a><span class="co">#&gt; [1] 3</span></span>
+<span id="cb6-26"><a href="#cb6-26" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-27"><a href="#cb6-27" tabindex="-1"></a><span class="co">#&gt; $genes_before</span></span>
+<span id="cb6-28"><a href="#cb6-28" tabindex="-1"></a><span class="co">#&gt; [1] 230</span></span>
+<span id="cb6-29"><a href="#cb6-29" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-30"><a href="#cb6-30" tabindex="-1"></a><span class="co">#&gt; $genes_after</span></span>
+<span id="cb6-31"><a href="#cb6-31" tabindex="-1"></a><span class="co">#&gt; [1] 230</span></span>
+<span id="cb6-32"><a href="#cb6-32" tabindex="-1"></a>query<span class="sc">@</span>params<span class="sc">$</span>filterCellsByDetectedGenes</span>
+<span id="cb6-33"><a href="#cb6-33" tabindex="-1"></a><span class="co">#&gt; $assay_name</span></span>
+<span id="cb6-34"><a href="#cb6-34" tabindex="-1"></a><span class="co">#&gt; [1] &quot;counts&quot;</span></span>
+<span id="cb6-35"><a href="#cb6-35" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-36"><a href="#cb6-36" tabindex="-1"></a><span class="co">#&gt; $min_count</span></span>
+<span id="cb6-37"><a href="#cb6-37" tabindex="-1"></a><span class="co">#&gt; [1] 1</span></span>
+<span id="cb6-38"><a href="#cb6-38" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-39"><a href="#cb6-39" tabindex="-1"></a><span class="co">#&gt; $lower_percentile</span></span>
+<span id="cb6-40"><a href="#cb6-40" tabindex="-1"></a><span class="co">#&gt; [1] 0.01</span></span>
+<span id="cb6-41"><a href="#cb6-41" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-42"><a href="#cb6-42" tabindex="-1"></a><span class="co">#&gt; $upper_percentile</span></span>
+<span id="cb6-43"><a href="#cb6-43" tabindex="-1"></a><span class="co">#&gt; [1] 0.99</span></span>
+<span id="cb6-44"><a href="#cb6-44" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-45"><a href="#cb6-45" tabindex="-1"></a><span class="co">#&gt; $lower_threshold</span></span>
+<span id="cb6-46"><a href="#cb6-46" tabindex="-1"></a><span class="co">#&gt; [1] 28.37</span></span>
+<span id="cb6-47"><a href="#cb6-47" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-48"><a href="#cb6-48" tabindex="-1"></a><span class="co">#&gt; $upper_threshold</span></span>
+<span id="cb6-49"><a href="#cb6-49" tabindex="-1"></a><span class="co">#&gt; [1] 94.42</span></span>
+<span id="cb6-50"><a href="#cb6-50" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-51"><a href="#cb6-51" tabindex="-1"></a><span class="co">#&gt; $cells_before</span></span>
+<span id="cb6-52"><a href="#cb6-52" tabindex="-1"></a><span class="co">#&gt; [1] 80</span></span>
+<span id="cb6-53"><a href="#cb6-53" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb6-54"><a href="#cb6-54" tabindex="-1"></a><span class="co">#&gt; $cells_after</span></span>
+<span id="cb6-55"><a href="#cb6-55" tabindex="-1"></a><span class="co">#&gt; [1] 78</span></span>
+<span id="cb6-56"><a href="#cb6-56" tabindex="-1"></a><span class="fu">dim</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">assay</span>(query, <span class="st">&quot;counts&quot;</span>))</span>
+<span id="cb6-57"><a href="#cb6-57" tabindex="-1"></a><span class="co">#&gt; [1] 230  78</span></span></code></pre></div>
+<p>The metrics computed during filtering are stored in
+<code>rowData()</code> and <code>colData()</code>.</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">head</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">rowData</span>(query))</span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a><span class="co">#&gt; DataFrame with 6 rows and 4 columns</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a><span class="co">#&gt;          detected_cells total_counts mean_counts gene_filter_keep</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a><span class="co">#&gt;               &lt;integer&gt;    &lt;numeric&gt;   &lt;numeric&gt;        &lt;logical&gt;</span></span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a><span class="co">#&gt; MS4A1                12           31      0.3875             TRUE</span></span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a><span class="co">#&gt; CD79B                23           48      0.6000             TRUE</span></span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a><span class="co">#&gt; CD79A                13           56      0.7000             TRUE</span></span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a><span class="co">#&gt; HLA-DRA              55         1074     13.4250             TRUE</span></span>
+<span id="cb7-9"><a href="#cb7-9" tabindex="-1"></a><span class="co">#&gt; TCL1A                 8           24      0.3000             TRUE</span></span>
+<span id="cb7-10"><a href="#cb7-10" tabindex="-1"></a><span class="co">#&gt; HLA-DQB1             30          137      1.7125             TRUE</span></span>
+<span id="cb7-11"><a href="#cb7-11" tabindex="-1"></a><span class="fu">head</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">colData</span>(query))</span>
+<span id="cb7-12"><a href="#cb7-12" tabindex="-1"></a><span class="co">#&gt; DataFrame with 6 rows and 3 columns</span></span>
+<span id="cb7-13"><a href="#cb7-13" tabindex="-1"></a><span class="co">#&gt;                detected_genes total_counts detected_genes_filter_keep</span></span>
+<span id="cb7-14"><a href="#cb7-14" tabindex="-1"></a><span class="co">#&gt;                     &lt;integer&gt;    &lt;numeric&gt;                  &lt;logical&gt;</span></span>
+<span id="cb7-15"><a href="#cb7-15" tabindex="-1"></a><span class="co">#&gt; ATGCCAGAACGACT             47           70                       TRUE</span></span>
+<span id="cb7-16"><a href="#cb7-16" tabindex="-1"></a><span class="co">#&gt; CATGGCCTGTGCAT             52           85                       TRUE</span></span>
+<span id="cb7-17"><a href="#cb7-17" tabindex="-1"></a><span class="co">#&gt; GAACCTGATGAACC             50           87                       TRUE</span></span>
+<span id="cb7-18"><a href="#cb7-18" tabindex="-1"></a><span class="co">#&gt; TGACTGGATTCTCA             56          127                       TRUE</span></span>
+<span id="cb7-19"><a href="#cb7-19" tabindex="-1"></a><span class="co">#&gt; AGTCAGACTGCACA             53          173                       TRUE</span></span>
+<span id="cb7-20"><a href="#cb7-20" tabindex="-1"></a><span class="co">#&gt; TCTGATACACGTGT             48           70                       TRUE</span></span></code></pre></div>
+</div>
+<div id="normalize-counts-and-apply-a-log-transform" class="section level1">
+<h1>Normalize counts and apply a log-transform</h1>
+<p>After filtering, counts are normalized to a total of 10,000 counts
+per cell and stored in <code>normcounts</code>. A log-transform is then
+applied and stored in <code>logcounts</code>.</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">normalizeToTotal</span>(query, <span class="at">target_total =</span> <span class="fl">1e4</span>)</span>
+<span id="cb8-2"><a href="#cb8-2" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">logTransform</span>(query, <span class="at">assay_name =</span> <span class="st">&quot;normcounts&quot;</span>, <span class="at">pseudo_count =</span> <span class="dv">1</span>, <span class="at">base =</span> <span class="dv">2</span>)</span>
+<span id="cb8-3"><a href="#cb8-3" tabindex="-1"></a></span>
+<span id="cb8-4"><a href="#cb8-4" tabindex="-1"></a>SummarizedExperiment<span class="sc">::</span><span class="fu">assayNames</span>(query)</span>
+<span id="cb8-5"><a href="#cb8-5" tabindex="-1"></a><span class="co">#&gt; [1] &quot;counts&quot;     &quot;normcounts&quot; &quot;logcounts&quot;</span></span>
+<span id="cb8-6"><a href="#cb8-6" tabindex="-1"></a><span class="fu">head</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">colData</span>(query)<span class="sc">$</span>library_size)</span>
+<span id="cb8-7"><a href="#cb8-7" tabindex="-1"></a><span class="co">#&gt; ATGCCAGAACGACT CATGGCCTGTGCAT GAACCTGATGAACC TGACTGGATTCTCA AGTCAGACTGCACA </span></span>
+<span id="cb8-8"><a href="#cb8-8" tabindex="-1"></a><span class="co">#&gt;             70             85             87            127            173 </span></span>
+<span id="cb8-9"><a href="#cb8-9" tabindex="-1"></a><span class="co">#&gt; TCTGATACACGTGT </span></span>
+<span id="cb8-10"><a href="#cb8-10" tabindex="-1"></a><span class="co">#&gt;             70</span></span></code></pre></div>
+</div>
+<div id="select-highly-variable-genes" class="section level1">
+<h1>Select highly variable genes</h1>
+<p>Highly variable genes are selected from the <code>logcounts</code>
+assay. Since this example dataset is small, we select at most 100
+genes.</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a>n_hvg <span class="ot">&lt;-</span> <span class="fu">min</span>(<span class="dv">100</span>, <span class="fu">nrow</span>(query))</span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">identifyHVGs</span>(query, <span class="at">assay_name =</span> <span class="st">&quot;logcounts&quot;</span>, <span class="at">n_top =</span> n_hvg, <span class="at">method =</span> <span class="st">&quot;dispersion&quot;</span>)</span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a><span class="fu">table</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">rowData</span>(query)<span class="sc">$</span>is_hvg)</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a><span class="co">#&gt; FALSE  TRUE </span></span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a><span class="co">#&gt;   130   100</span></span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a><span class="fu">head</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">rowData</span>(query)[<span class="fu">order</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">rowData</span>(query)<span class="sc">$</span>hvg_rank), ])</span>
+<span id="cb9-9"><a href="#cb9-9" tabindex="-1"></a><span class="co">#&gt; DataFrame with 6 rows and 11 columns</span></span>
+<span id="cb9-10"><a href="#cb9-10" tabindex="-1"></a><span class="co">#&gt;       detected_cells total_counts mean_counts gene_filter_keep  hvg_mean</span></span>
+<span id="cb9-11"><a href="#cb9-11" tabindex="-1"></a><span class="co">#&gt;            &lt;integer&gt;    &lt;numeric&gt;   &lt;numeric&gt;        &lt;logical&gt; &lt;numeric&gt;</span></span>
+<span id="cb9-12"><a href="#cb9-12" tabindex="-1"></a><span class="co">#&gt; IGLL5              3           39      0.4875             TRUE  0.366860</span></span>
+<span id="cb9-13"><a href="#cb9-13" tabindex="-1"></a><span class="co">#&gt; PPBP              13          426      5.3250             TRUE  1.599649</span></span>
+<span id="cb9-14"><a href="#cb9-14" tabindex="-1"></a><span class="co">#&gt; PF4               10          172      2.1500             TRUE  1.163385</span></span>
+<span id="cb9-15"><a href="#cb9-15" tabindex="-1"></a><span class="co">#&gt; GNG11             10           90      1.1250             TRUE  1.078463</span></span>
+<span id="cb9-16"><a href="#cb9-16" tabindex="-1"></a><span class="co">#&gt; TCL1A              8           24      0.3000             TRUE  0.714397</span></span>
+<span id="cb9-17"><a href="#cb9-17" tabindex="-1"></a><span class="co">#&gt; CLU               10           73      0.9125             TRUE  1.048038</span></span>
+<span id="cb9-18"><a href="#cb9-18" tabindex="-1"></a><span class="co">#&gt;       hvg_variance hvg_dispersion   hvg_cv2 hvg_score  hvg_rank    is_hvg</span></span>
+<span id="cb9-19"><a href="#cb9-19" tabindex="-1"></a><span class="co">#&gt;          &lt;numeric&gt;      &lt;numeric&gt; &lt;numeric&gt; &lt;numeric&gt; &lt;integer&gt; &lt;logical&gt;</span></span>
+<span id="cb9-20"><a href="#cb9-20" tabindex="-1"></a><span class="co">#&gt; IGLL5      3.50255        9.54737  26.02454   9.54737         1      TRUE</span></span>
+<span id="cb9-21"><a href="#cb9-21" tabindex="-1"></a><span class="co">#&gt; PPBP      13.89851        8.68847   5.43149   8.68847         2      TRUE</span></span>
+<span id="cb9-22"><a href="#cb9-22" tabindex="-1"></a><span class="co">#&gt; PF4        9.57149        8.22728   7.07184   8.22728         3      TRUE</span></span>
+<span id="cb9-23"><a href="#cb9-23" tabindex="-1"></a><span class="co">#&gt; GNG11      8.16201        7.56819   7.01756   7.56819         4      TRUE</span></span>
+<span id="cb9-24"><a href="#cb9-24" tabindex="-1"></a><span class="co">#&gt; TCL1A      5.30365        7.42395  10.39191   7.42395         5      TRUE</span></span>
+<span id="cb9-25"><a href="#cb9-25" tabindex="-1"></a><span class="co">#&gt; CLU        7.69027        7.33777   7.00143   7.33777         6      TRUE</span></span></code></pre></div>
+</div>
+<div id="cluster-cells" class="section level1">
+<h1>Cluster cells</h1>
+<p><code>performClustering()</code> first computes a PCA using
+<code>scater::runPCA()</code> and then applies the selected clustering
+algorithm. Here, k-means clustering is used with seven clusters so that
+the comparison plots show a more detailed relationship with the
+reference annotations.</p>
+<div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" tabindex="-1"></a>n_pcs <span class="ot">&lt;-</span> <span class="fu">min</span>(<span class="dv">5</span>, <span class="fu">ncol</span>(query) <span class="sc">-</span> <span class="dv">1</span>, <span class="fu">sum</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">rowData</span>(query)<span class="sc">$</span>is_hvg) <span class="sc">-</span> <span class="dv">1</span>)</span>
+<span id="cb10-2"><a href="#cb10-2" tabindex="-1"></a>n_pcs <span class="ot">&lt;-</span> <span class="fu">max</span>(<span class="dv">2</span>, n_pcs)</span>
+<span id="cb10-3"><a href="#cb10-3" tabindex="-1"></a></span>
+<span id="cb10-4"><a href="#cb10-4" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">performClustering</span>(</span>
+<span id="cb10-5"><a href="#cb10-5" tabindex="-1"></a>  <span class="at">object =</span> query,</span>
+<span id="cb10-6"><a href="#cb10-6" tabindex="-1"></a>  <span class="at">assay_name =</span> <span class="st">&quot;logcounts&quot;</span>,</span>
+<span id="cb10-7"><a href="#cb10-7" tabindex="-1"></a>  <span class="at">algorithm =</span> <span class="st">&quot;kmeans&quot;</span>,</span>
+<span id="cb10-8"><a href="#cb10-8" tabindex="-1"></a>  <span class="at">use_hvg =</span> <span class="cn">TRUE</span>,</span>
+<span id="cb10-9"><a href="#cb10-9" tabindex="-1"></a>  <span class="at">n_hvg =</span> n_hvg,</span>
+<span id="cb10-10"><a href="#cb10-10" tabindex="-1"></a>  <span class="at">n_pcs =</span> n_pcs,</span>
+<span id="cb10-11"><a href="#cb10-11" tabindex="-1"></a>  <span class="at">n_clusters =</span> <span class="dv">7</span>,</span>
+<span id="cb10-12"><a href="#cb10-12" tabindex="-1"></a>  <span class="at">cluster_column =</span> <span class="st">&quot;cluster&quot;</span>,</span>
+<span id="cb10-13"><a href="#cb10-13" tabindex="-1"></a>  <span class="at">pca_name =</span> <span class="st">&quot;PCA&quot;</span></span>
+<span id="cb10-14"><a href="#cb10-14" tabindex="-1"></a>)</span>
+<span id="cb10-15"><a href="#cb10-15" tabindex="-1"></a></span>
+<span id="cb10-16"><a href="#cb10-16" tabindex="-1"></a><span class="fu">table</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">colData</span>(query)<span class="sc">$</span>cluster)</span>
+<span id="cb10-17"><a href="#cb10-17" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb10-18"><a href="#cb10-18" tabindex="-1"></a><span class="co">#&gt;  1  2  3  4  5  6  7 </span></span>
+<span id="cb10-19"><a href="#cb10-19" tabindex="-1"></a><span class="co">#&gt; 30  8 13  6  9  3  9</span></span></code></pre></div>
+</div>
+<div id="annotate-cells-with-seurat" class="section level1">
+<h1>Annotate cells with Seurat</h1>
+<p>Cell labels are transferred from the Seurat reference to the query
+object. <code>performDeconvolution()</code> stores the predicted labels
+in <code>colData(query)$seurat_label</code> and the maximum prediction
+score in <code>colData(query)$seurat_label_score</code>.</p>
+<div class="sourceCode" id="cb11"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" tabindex="-1"></a>dims <span class="ot">&lt;-</span> <span class="fu">seq_len</span>(<span class="fu">min</span>(<span class="dv">10</span>, <span class="fu">ncol</span>(SeuratObject<span class="sc">::</span><span class="fu">Embeddings</span>(reference, <span class="st">&quot;pca&quot;</span>))))</span>
+<span id="cb11-2"><a href="#cb11-2" tabindex="-1"></a></span>
+<span id="cb11-3"><a href="#cb11-3" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">performDeconvolution</span>(</span>
+<span id="cb11-4"><a href="#cb11-4" tabindex="-1"></a>  <span class="at">object =</span> query,</span>
+<span id="cb11-5"><a href="#cb11-5" tabindex="-1"></a>  <span class="at">reference =</span> reference,</span>
+<span id="cb11-6"><a href="#cb11-6" tabindex="-1"></a>  <span class="at">flavour =</span> <span class="st">&quot;seurat&quot;</span>,</span>
+<span id="cb11-7"><a href="#cb11-7" tabindex="-1"></a>  <span class="at">reference_label_column =</span> <span class="st">&quot;letter.idents&quot;</span>,</span>
+<span id="cb11-8"><a href="#cb11-8" tabindex="-1"></a>  <span class="at">label_column =</span> <span class="st">&quot;seurat_label&quot;</span>,</span>
+<span id="cb11-9"><a href="#cb11-9" tabindex="-1"></a>  <span class="at">dims =</span> dims</span>
+<span id="cb11-10"><a href="#cb11-10" tabindex="-1"></a>)</span>
+<span id="cb11-11"><a href="#cb11-11" tabindex="-1"></a></span>
+<span id="cb11-12"><a href="#cb11-12" tabindex="-1"></a><span class="fu">table</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">colData</span>(query)<span class="sc">$</span>seurat_label)</span>
+<span id="cb11-13"><a href="#cb11-13" tabindex="-1"></a><span class="co">#&gt; </span></span>
+<span id="cb11-14"><a href="#cb11-14" tabindex="-1"></a><span class="co">#&gt;  A  B </span></span>
+<span id="cb11-15"><a href="#cb11-15" tabindex="-1"></a><span class="co">#&gt; 48 30</span></span>
+<span id="cb11-16"><a href="#cb11-16" tabindex="-1"></a><span class="fu">summary</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">colData</span>(query)<span class="sc">$</span>seurat_label_score)</span>
+<span id="cb11-17"><a href="#cb11-17" tabindex="-1"></a><span class="co">#&gt;    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. </span></span>
+<span id="cb11-18"><a href="#cb11-18" tabindex="-1"></a><span class="co">#&gt;  0.6942  0.8479  0.9251  0.9094  0.9893  1.0000</span></span></code></pre></div>
+</div>
+<div id="compare-clusters-and-cell-type-labels" class="section level1">
+<h1>Compare clusters and cell-type labels</h1>
+<p><code>compareClusterCellTypes()</code> builds a contingency table
+between the computed clusters and the predicted cell-type labels. The
+result is stored in
+<code>metadata(query)$cluster_cell_type_comparison</code>.</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">compareClusterCellTypes</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" tabindex="-1"></a>  <span class="at">object =</span> query,</span>
+<span id="cb12-3"><a href="#cb12-3" tabindex="-1"></a>  <span class="at">cluster_column =</span> <span class="st">&quot;cluster&quot;</span>,</span>
+<span id="cb12-4"><a href="#cb12-4" tabindex="-1"></a>  <span class="at">cell_type_column =</span> <span class="st">&quot;seurat_label&quot;</span>,</span>
+<span id="cb12-5"><a href="#cb12-5" tabindex="-1"></a>  <span class="at">metadata_name =</span> <span class="st">&quot;cluster_cell_type_comparison&quot;</span></span>
+<span id="cb12-6"><a href="#cb12-6" tabindex="-1"></a>)</span>
+<span id="cb12-7"><a href="#cb12-7" tabindex="-1"></a><span class="co">#&gt;    cluster cell_type  n row_fraction column_fraction</span></span>
+<span id="cb12-8"><a href="#cb12-8" tabindex="-1"></a><span class="co">#&gt; 1        1         B 30            1       1.0000000</span></span>
+<span id="cb12-9"><a href="#cb12-9" tabindex="-1"></a><span class="co">#&gt; 2        1         A  0            0       0.0000000</span></span>
+<span id="cb12-10"><a href="#cb12-10" tabindex="-1"></a><span class="co">#&gt; 3        2         A  8            1       0.1666667</span></span>
+<span id="cb12-11"><a href="#cb12-11" tabindex="-1"></a><span class="co">#&gt; 4        2         B  0            0       0.0000000</span></span>
+<span id="cb12-12"><a href="#cb12-12" tabindex="-1"></a><span class="co">#&gt; 5        3         A 13            1       0.2708333</span></span>
+<span id="cb12-13"><a href="#cb12-13" tabindex="-1"></a><span class="co">#&gt; 6        3         B  0            0       0.0000000</span></span>
+<span id="cb12-14"><a href="#cb12-14" tabindex="-1"></a><span class="co">#&gt; 7        4         A  6            1       0.1250000</span></span>
+<span id="cb12-15"><a href="#cb12-15" tabindex="-1"></a><span class="co">#&gt; 8        4         B  0            0       0.0000000</span></span>
+<span id="cb12-16"><a href="#cb12-16" tabindex="-1"></a><span class="co">#&gt; 9        5         A  9            1       0.1875000</span></span>
+<span id="cb12-17"><a href="#cb12-17" tabindex="-1"></a><span class="co">#&gt; 10       5         B  0            0       0.0000000</span></span>
+<span id="cb12-18"><a href="#cb12-18" tabindex="-1"></a><span class="co">#&gt; 11       6         A  3            1       0.0625000</span></span>
+<span id="cb12-19"><a href="#cb12-19" tabindex="-1"></a><span class="co">#&gt; 12       6         B  0            0       0.0000000</span></span>
+<span id="cb12-20"><a href="#cb12-20" tabindex="-1"></a><span class="co">#&gt; 13       7         A  9            1       0.1875000</span></span>
+<span id="cb12-21"><a href="#cb12-21" tabindex="-1"></a><span class="co">#&gt; 14       7         B  0            0       0.0000000</span></span>
+<span id="cb12-22"><a href="#cb12-22" tabindex="-1"></a></span>
+<span id="cb12-23"><a href="#cb12-23" tabindex="-1"></a>comparison <span class="ot">&lt;-</span> S4Vectors<span class="sc">::</span><span class="fu">metadata</span>(query)<span class="sc">$</span>cluster_cell_type_comparison</span>
+<span id="cb12-24"><a href="#cb12-24" tabindex="-1"></a><span class="fu">head</span>(comparison<span class="sc">$</span>long_table)</span>
+<span id="cb12-25"><a href="#cb12-25" tabindex="-1"></a><span class="co">#&gt;   cluster cell_type  n row_fraction column_fraction</span></span>
+<span id="cb12-26"><a href="#cb12-26" tabindex="-1"></a><span class="co">#&gt; 1       1         B 30            1       1.0000000</span></span>
+<span id="cb12-27"><a href="#cb12-27" tabindex="-1"></a><span class="co">#&gt; 2       1         A  0            0       0.0000000</span></span>
+<span id="cb12-28"><a href="#cb12-28" tabindex="-1"></a><span class="co">#&gt; 3       2         A  8            1       0.1666667</span></span>
+<span id="cb12-29"><a href="#cb12-29" tabindex="-1"></a><span class="co">#&gt; 4       2         B  0            0       0.0000000</span></span>
+<span id="cb12-30"><a href="#cb12-30" tabindex="-1"></a><span class="co">#&gt; 5       3         A 13            1       0.2708333</span></span>
+<span id="cb12-31"><a href="#cb12-31" tabindex="-1"></a><span class="co">#&gt; 6       3         B  0            0       0.0000000</span></span></code></pre></div>
+</div>
+<div id="visualize-the-results" class="section level1">
+<h1>Visualize the results</h1>
+<p>The package provides three plotting functions to explore the
+relationship between clusters and annotations.</p>
+<div class="sourceCode" id="cb13"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" tabindex="-1"></a><span class="fu">plotClusterCellTypeHeatmap</span>(query, <span class="at">metadata_name =</span> <span class="st">&quot;cluster_cell_type_comparison&quot;</span>, <span class="at">value =</span> <span class="st">&quot;row_proportions&quot;</span>)</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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7153ajaXyd7EH9o1N7e/2W28e1DhzXmRAh26AuU+qCKDQDVDQpECHbYHykA1cRPvJAV65cywuZvNZbID5UGSkxDorTcN28IzUE08zeQiBDp8F5Qn6sebZkgo/E6SxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoBioxLogMKWGoKS/F//UwkND/iC3dUBo1gWB6aaEIQR65VzvxsPXxLkb7uXEPQ82+4CN5nIoCO5q9AHHPNCbr3566NzN5nLi6I4JDvTwvpnZPQeafMQxD3T9Vf9S2MRfd2q0lpPHjk/yGnR278Ejd880+Yhz7kFtpLvKhEBPnwsj5Sa+KYd2zc3tb3Ybrx0TgrQGvda7+bh8lNRsLgxUmXZMCMI+6N8x0CZrMdjEa8eEIB/FcxPfHB4kOQmB3jy78JIhB/LN5jLZgfI0kxO/kyRptpfGKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUExUAl1gWBKTUE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" /><!-- --></p>
+<div class="sourceCode" id="cb14"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" tabindex="-1"></a><span class="fu">plotClusterCellTypeDendrogram</span>(query, <span class="at">metadata_name =</span> <span class="st">&quot;cluster_cell_type_comparison&quot;</span>, <span class="at">value =</span> <span class="st">&quot;row_proportions&quot;</span>, <span class="at">margin =</span> <span class="st">&quot;clusters&quot;</span>)</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAqAAAAHgCAMAAABNUi8GAAABTVBMVEUAAAAAADUAADoAAF4AAGYAOjoAOmYAOpAAXqgAZpAAZrY1hMk6AAA6ADo6AGY6OgA6OmY6OpA6ZmY6ZpA6ZrY6kLY6kNtNTU1NTW5NTY5NbqtNjshehMleqOtmAABmADpmAGZmOgBmOjpmOmZmOpBmkJBmkLZmkNtmtpBmtrZmtttmtv9uTW5uTY5ubqtuq+SEyeuOTU2OTW6OTY6OyP+QOgCQOjqQOmaQZgCQZjqQZmaQkDqQkLaQtpCQttuQ27aQ29uQ2/+rbk2rbm6rbo6ryKur5P+2ZgC2Zjq2kDq2tpC2ttu229u22/+2/7a2/9u2///Ijk3I///JhDXJ6+vbkDrbkGbbtmbbtpDb25Db27bb29vb/7bb/9vb///kq27k///ryYTr66jr68nr6+v/tmb/yI7/25D/27b/5Kv//7b//8j//9v//+T///98gODPAAAACXBIWXMAAA7DAAAOwwHHb6hkAAATYUlEQVR4nO3d+3sbZ52G8alJ412jbIEWu013DWEPLDVtaRvDntpdF4gpSyDNIsruUidQK8KHPP//j8xJGo08lseSZt7nte/vRVtfHuvWG8/HM6OxHRIxjPEkoRfAMIsGoIz1AJSxHoAy1gNQxnoAylgPQBnrAShjPUsAHSb5fOPxwo86399ackkN84sk2Tqq1zePmj5w/PdPrq6dfudgPctqnmwNl62vmsPtLtdwc2Z5oEmyt+ij1gl0lD5ZvXYZgOGdFkA7tpGt4Wqg43udfpXcmFkGaI7g/HeDjUWf4vUCnf9aWAXoqA3iFabVF0n6ZbLGM8wNnqWBZmyyI9GfHxRn+5TML19LNr6fbflikNz9VQo0RTpM7jzOP+bu43LLxj/NbPnitSR/zHiw/cUgfWM0SF6fyps87DA9gE52epY+KIAWSPMvhPN/TTPvpG+nH7k9u6b8Wcqt5RQPqK+sSA2zx9a+sE53t0eTJ6z/Uaot1Trzj9kYZGsogtWG6eemWguH0FazAtB8J4yz/ZGkx9IcR3Hez68B7j7IGL46SDaPRpOPmVwdTLcMJ48ZD76VftDGx4OZk/n0YTNAR9NnmwVaPvdeCXRmTdmzfLlfuyAZD/Z0YWXDbHWH2VOnXyrVH/V0N1tWlaoeUG2p1pl/zN0HU6Cji5+b82ota71Iv7mzAlAd3nlyvp8dDn4/yJGkr2OG6T4+3d34RH/ezxkWx6Tknczm5tHFLekxKSWxlZl6R18UusqTd/Ww6hSfPt1B+mHbc0DHgzeO8kx5/Tezpm3NbK2WP7+yTO3pbvZlMJq9cEnftXV0/lnjH2VmS/m+4mOm16C1DeXnZnYthx1fatyMWRFoebwZZlSzd5/ubpXHoHEOJHvfZH9sHBQXBdWWdP7/l/82yHfcVvbgVNz06rJ6WAV0enibB/rqP/5qurb5NVVbi1UXj6qvLF/3vY/Ts+7h7MVtvqLyK3H+AZMt1fvKP9QE6PyG4nNTrWW48BqeKWZFoKPyBX22EyZcRtMzWPG+/Jyq7NBU7JJqS3kyTkrU2R7UVEj1sFmg00Np7Ro0uwhIXn9crG1+TdXWySN1YWXZs47u/Hp3L722nPmjFivKKM0/oNpSva98ugpofUN9pU0v/ZiLs+I16GpA0/Pkt/7jv/+wuzJQ/f5BcZ3aCHS6dfLIBqDpP4dbaWv6DPmsH+jMWgDaZlZ8FV/tz9kTbnYQyvbgZK82neKr/V1cgzYAveIUX1zElVKk//uX9KOKU3x9TdXW2XXWV5a++YP9bQ03P6tdGBYn8uwMPf+AasvsmXwOaH3D9FVRuRaAtplV7oMWL0g+Ufq6Z7IHs52QvhTK7/hsTTE0vUgq9/dRdi8m25kXgF76Imm8Wx49D5PvF88zSr6dXrx+Vr4an19TtTWfwwrozFOkr8DvZcfR12ovrdND/LcnL4Xm/yjVluq1UAF0epehvqE4u1Rr4Rq0zaz6naTyfLo9cwQt3lfcZsr3WONtpnJ/59MIdOZh1bFmNL1dk7udPk+ZyZ5g++KaJluL5W8c6OLK0kemX28pu9pR7XT31UFxRp5/QLVl9m5SAbThNtPcDbHJC6wldthtm6WBbpSvOsbpNdWr78ye4vPrrLu/qV4K5R9T3aj/5+nJv7iT/cnkbsAc0OphMyfDLDB9tt8Nkte/nN6ofyO7qn2Q3dCpr6naWlSL+6DzKxslW+URembSFWXfOnh88QHVlup95cdka/iyOEPUNpzXVsp90HYT4KeZ6i+Ue5/rwJhe4F5jS9vhO0mtpleg48Ffp1dgh4FfHIzaX/t1CZTvxbeaXoHOXQ2Gmit+mqm8OZtdxvxnd0A5gLabfk/x9avBUHPFz4P2A5SfB203/EQ9Yz0AZawHoIz1AJSxHoAy1gNQxnrWC/R4rbUbE4946cHjAO0hHvHSg8cB2kM84qUHjwO0h3jESw8eB2gP8YiXHjwO0B7iES89eBygPcQjXnrwOEB7iEe89OBxgPYQj3jpweMA7SEe8dKDxwHaQzzipQePA7SHeMRLDx4HaA/xiJcePA7QHuIRLz14HKA9xCNeevA4QHuIR7z04HGA9hCPeOnB4wDtIR7x0oPHAdpDPOKlB48DtId4xEsPHl8v0CTSAahtfM1A11qbm+4+VwD1jQNUAHWOA1QAdY4DVAB1jgNUAHWOA1QAdY4DVAB1jgNUAHWOA1QAdY4DVAB1jgNUAHWOA1QAdY4DVAB1jgNUAHWOA1QAdY4DVAB1jgNUAHWOA1QAdY4DVAB1jgNUAHWOA1QAdY5fn9TxgkkWbfSdSJd9o2d5oOvlfo3hCHob4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jC0mdvPs0/++znZ2dt56uWlt1AHob44tIvZio/Pxhy2cEaPME383xxheQ+vzNnxdH0Jc/fdTyGQHaPMF3c7zxNqf4sw/SU/z0IHq8YJJFG30n0mXf6LkO0JMfPmp5FOUI2jzBj0Pxxlu9SMqm1XUoQJsn+G6ONw5QAdQ53gboi/vP9fJn3GZafoLv5njjVwLN/nm2s/NmqxfyAG2e4Ls53jjfSRJAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3j1yd1vGCSRRt9J9Jl3+hZHuh6uV9jOILexjhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDneJ3UMEn2hptHSz8jQJsn+G6ON14jdbj5h9298/2tpZ8RoM0TfDfHG58ldbq7l/5PoztPln1GgDZP8N0cbxygAqhzvEZqmJ3iT3e3l35GgDZP8N0cb7xOapSks7xPgF4ywXdzvHFuMwmgznGACqDO8Rqp8/1trXKXCaCXTPDdHG+8fh80szkj9OTdp/l/zz7Yuf+8zTMCtHmC7+Z443O3mbL/TG8zvdh5Kwf68tOHevZ2m2cEaPME383xxhcA/fzNnxdH0LOPnk4Ppu1rax+A3sZ4/T5oRnPmPmip8uS95zr78NGkumCSRRt9J9Jl3+hpBDp/H7QE+uL+LNDW3Nc9HEFvY3whqcYj6NK1VQegtzHeBijXoKtO8N0cb7xGajzITvHJ9IdFSpUvP32fV/ErTfDdHG98ltSFe/QZ0Owf7oOuOMF3c7zxhttMKwxAmyf4bo43Xj+CArSbCb6b443XSK3wo8oNtXUPQG9jvH6KT+ovkq49AG2e4Ls53jg/bieAOscBKoA6xxfeB732ALR5gu/meOP1V/Hb6Qv5VW42AbR5gu/meOPz90EPtzVa/q8WAWjzBN/N8cbngQ63+L349U/w3RxvfP5XPlKdK/zlTABtnuC7Od74hV+aO0w2DpZ+RoA2T/DdHG+c20wCqHN80S/NXX8A2jzBd3O8cYAKoM7xitQwmQx/P+i6J/hujjfOz4MKoM5xXiQJoM7xGqn8b7Bd4VvxAL1kgu/meOPzN+qHd54MuQZd9wTfzfHG565Bs9+b41X82if4bo43fuHvqN8G6Pon+G6ONz7343ajjYPiL2FcbgDaPMF3c7zx+R9Y3tIh/0dea5/guzneOLeZBFDnOEAFUOf4lFRxD5TfSepkgu/meOMcQQVQ5zhABVDn+Cyp/O9XTlb5gRGANk/w3RxvvCJ1vp9fe57ucptp7RN8N8cbn/l50BJm9otJyw5Amyf4bo43PiVV/d2L/Fbn2if4bo43PnubqXyL78WvfYLv5njjABVAneMAFUCd4wAVQJ3jM0Cnv9UJ0HVP8N0cb5zvJAmgznGACqDOcYAKoM5xgAqgznGACqDOcYAKoM5xgAqgznGACqDOcYAKoM5xgAqgzvHrkzpeMMmijb4T6bJv9CwPdL3crzEcQW9jHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHMcoAKocxygAqhzHKACqHN8AamzD3buP8/ferazs/PW09Vqqw9Ab2P8clIvP32oZ2/nb37+sOUzArR5gu/meOOXkzr76KlO3s2Omy9/+qjlMwK0eYLv5njjl5M6ee+5zj7MaKbn+p2d6UH0eMEkizb6TqTLvtFzNdAX9ydAT374qOVRlCNo8wQ/DsUbb3MEzafVdShAmyf4bo433uYaNB+ArjDBd3O88UWv4t8vX8VnJ/uXP+M20/ITfDfHG7/yPmh2EH22s/NmqxfyAG2e4Ls53jjfSRJAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3jABVAneMAFUCd4wAVQJ3j1yd1vGCSRRt9J9Jl3+hZHuh6uV9jOILexjhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDnOEAFUOc4QAVQ5zhABVDn+AJSZx/s3H8+99bytdUHoLcxfjmpl58+1LO3628tX1vDAPQ2xi8ndfbRU528+7T21vK1NQxAb2P8clIn7z3X2YePam/l1VCTMDdsFu3tq4G+uD9hWb21ji+J5eZ0d7vDL+bxvR+NkuTOky7ap999ov9Jks2jLuLZHJ//+KCj9HiQbBV/gg5mlLzy8eDKT/r1j6CLpkOg3/33r3Xyacom3cN//OaRxt/sAlG6e0d/pa7iu8WxqJuvrfP9vePRnSfdAM0+6YO9Kz8v67sG7fZzlX6S/rSb7HWRzuN/fKOrI0VaHX69s8PQeLDd3RE0XfNx+q9fd/V5+eonT678vCx6Ff/+9FX8+21exZ9+56DLI2j6udJhR/x/cfBVupPHb3TRPt3d/N+/Tf/zDx2d44ev/FdXQFP56Sf99Ht/08kRND086+rPy5X3QbNDZ8v7oKPN315vjdeYAmhXc76fHfu7ukwcD145GN/r6jpRX+1vdHcN+nfpv0fdHBXSC/+0fdXa13tjKPhNCc94xEsPHgdoD/GIlx48DtAe4hEvPXgcoD3EI1568DhAe4hHvPTgcYD2EI946cHjAO0hHvHSg8cB2kM84qUHjwO0h3jESw8eB2gP8YiXHjwO0B7iES89eBygPcQjXnrwOEB7iEe89OBxgPYQj3jpweOd/pobw6w6AGWsB6CM9QCUsR6AMtYDUMZ6AMpYD0AZ6/kLPjHxG/BmHtEAAAAASUVORK5CYII=" /><!-- --></p>
+<div class="sourceCode" id="cb15"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" tabindex="-1"></a><span class="fu">plotClusterCellTypeAlluvial</span>(query, <span class="at">metadata_name =</span> <span class="st">&quot;cluster_cell_type_comparison&quot;</span>)</span></code></pre></div>
+<p><img role="img" src="data:image/png;base64,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" /><!-- --></p>
+</div>
+<div id="workflow-history-and-parameters" class="section level1">
+<h1>Workflow history and parameters</h1>
+<p>The <code>ScDeconvExperiment</code> class keeps track of the
+parameters used by the workflow and of the analysis steps that were
+executed. This helps make the workflow more reproducible.</p>
+<div class="sourceCode" id="cb16"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" tabindex="-1"></a>query<span class="sc">@</span>history</span>
+<span id="cb16-2"><a href="#cb16-2" tabindex="-1"></a><span class="co">#&gt; [1] &quot;Filtered low-expression genes: 0 removed, 230 retained.&quot;                            </span></span>
+<span id="cb16-3"><a href="#cb16-3" tabindex="-1"></a><span class="co">#&gt; [2] &quot;Filtered cells by detected genes: 2 removed, 78 retained.&quot;                          </span></span>
+<span id="cb16-4"><a href="#cb16-4" tabindex="-1"></a><span class="co">#&gt; [3] &quot;normalizeToTotal&quot;                                                                   </span></span>
+<span id="cb16-5"><a href="#cb16-5" tabindex="-1"></a><span class="co">#&gt; [4] &quot;logTransform&quot;                                                                       </span></span>
+<span id="cb16-6"><a href="#cb16-6" tabindex="-1"></a><span class="co">#&gt; [5] &quot;Identified 100 highly variable genes using method &#39;dispersion&#39;.&quot;                    </span></span>
+<span id="cb16-7"><a href="#cb16-7" tabindex="-1"></a><span class="co">#&gt; [6] &quot;Performed kmeans clustering using 100 genes.&quot;                                       </span></span>
+<span id="cb16-8"><a href="#cb16-8" tabindex="-1"></a><span class="co">#&gt; [7] &quot;Assigned cell types using seurat. Labels stored in colData column &#39;seurat_label&#39;.&quot;  </span></span>
+<span id="cb16-9"><a href="#cb16-9" tabindex="-1"></a><span class="co">#&gt; [8] &quot;Compared clusters from column &#39;cluster&#39; with cell types from column &#39;seurat_label&#39;.&quot;</span></span>
+<span id="cb16-10"><a href="#cb16-10" tabindex="-1"></a><span class="fu">str</span>(query<span class="sc">@</span>params, <span class="at">max.level =</span> <span class="dv">2</span>)</span>
+<span id="cb16-11"><a href="#cb16-11" tabindex="-1"></a><span class="co">#&gt; List of 8</span></span>
+<span id="cb16-12"><a href="#cb16-12" tabindex="-1"></a><span class="co">#&gt;  $ filterLowExpressionGenes  :List of 6</span></span>
+<span id="cb16-13"><a href="#cb16-13" tabindex="-1"></a><span class="co">#&gt;   ..$ assay_name      : chr &quot;counts&quot;</span></span>
+<span id="cb16-14"><a href="#cb16-14" tabindex="-1"></a><span class="co">#&gt;   ..$ min_count       : num 1</span></span>
+<span id="cb16-15"><a href="#cb16-15" tabindex="-1"></a><span class="co">#&gt;   ..$ lower_percentile: num 0.01</span></span>
+<span id="cb16-16"><a href="#cb16-16" tabindex="-1"></a><span class="co">#&gt;   ..$ min_cells       : num 3</span></span>
+<span id="cb16-17"><a href="#cb16-17" tabindex="-1"></a><span class="co">#&gt;   ..$ genes_before    : int 230</span></span>
+<span id="cb16-18"><a href="#cb16-18" tabindex="-1"></a><span class="co">#&gt;   ..$ genes_after     : int 230</span></span>
+<span id="cb16-19"><a href="#cb16-19" tabindex="-1"></a><span class="co">#&gt;  $ filterCellsByDetectedGenes:List of 8</span></span>
+<span id="cb16-20"><a href="#cb16-20" tabindex="-1"></a><span class="co">#&gt;   ..$ assay_name      : chr &quot;counts&quot;</span></span>
+<span id="cb16-21"><a href="#cb16-21" tabindex="-1"></a><span class="co">#&gt;   ..$ min_count       : num 1</span></span>
+<span id="cb16-22"><a href="#cb16-22" tabindex="-1"></a><span class="co">#&gt;   ..$ lower_percentile: num 0.01</span></span>
+<span id="cb16-23"><a href="#cb16-23" tabindex="-1"></a><span class="co">#&gt;   ..$ upper_percentile: num 0.99</span></span>
+<span id="cb16-24"><a href="#cb16-24" tabindex="-1"></a><span class="co">#&gt;   ..$ lower_threshold : num 28.4</span></span>
+<span id="cb16-25"><a href="#cb16-25" tabindex="-1"></a><span class="co">#&gt;   ..$ upper_threshold : num 94.4</span></span>
+<span id="cb16-26"><a href="#cb16-26" tabindex="-1"></a><span class="co">#&gt;   ..$ cells_before    : int 80</span></span>
+<span id="cb16-27"><a href="#cb16-27" tabindex="-1"></a><span class="co">#&gt;   ..$ cells_after     : int 78</span></span>
+<span id="cb16-28"><a href="#cb16-28" tabindex="-1"></a><span class="co">#&gt;  $ normalization             :List of 2</span></span>
+<span id="cb16-29"><a href="#cb16-29" tabindex="-1"></a><span class="co">#&gt;   ..$ method      : chr &quot;target_total&quot;</span></span>
+<span id="cb16-30"><a href="#cb16-30" tabindex="-1"></a><span class="co">#&gt;   ..$ target_total: num 10000</span></span>
+<span id="cb16-31"><a href="#cb16-31" tabindex="-1"></a><span class="co">#&gt;  $ log_transform             :List of 4</span></span>
+<span id="cb16-32"><a href="#cb16-32" tabindex="-1"></a><span class="co">#&gt;   ..$ input_assay : chr &quot;normcounts&quot;</span></span>
+<span id="cb16-33"><a href="#cb16-33" tabindex="-1"></a><span class="co">#&gt;   ..$ output_assay: chr &quot;logcounts&quot;</span></span>
+<span id="cb16-34"><a href="#cb16-34" tabindex="-1"></a><span class="co">#&gt;   ..$ pseudo_count: num 1</span></span>
+<span id="cb16-35"><a href="#cb16-35" tabindex="-1"></a><span class="co">#&gt;   ..$ base        : num 2</span></span>
+<span id="cb16-36"><a href="#cb16-36" tabindex="-1"></a><span class="co">#&gt;  $ identifyHVGs              :List of 6</span></span>
+<span id="cb16-37"><a href="#cb16-37" tabindex="-1"></a><span class="co">#&gt;   ..$ assay_name: chr &quot;logcounts&quot;</span></span>
+<span id="cb16-38"><a href="#cb16-38" tabindex="-1"></a><span class="co">#&gt;   ..$ n_top     : num 100</span></span>
+<span id="cb16-39"><a href="#cb16-39" tabindex="-1"></a><span class="co">#&gt;   ..$ n_selected: int 100</span></span>
+<span id="cb16-40"><a href="#cb16-40" tabindex="-1"></a><span class="co">#&gt;   ..$ method    : chr &quot;dispersion&quot;</span></span>
+<span id="cb16-41"><a href="#cb16-41" tabindex="-1"></a><span class="co">#&gt;   ..$ min_mean  : num 0</span></span>
+<span id="cb16-42"><a href="#cb16-42" tabindex="-1"></a><span class="co">#&gt;   ..$ max_mean  : num Inf</span></span>
+<span id="cb16-43"><a href="#cb16-43" tabindex="-1"></a><span class="co">#&gt;  $ performClustering         :List of 12</span></span>
+<span id="cb16-44"><a href="#cb16-44" tabindex="-1"></a><span class="co">#&gt;   ..$ assay_name     : chr &quot;logcounts&quot;</span></span>
+<span id="cb16-45"><a href="#cb16-45" tabindex="-1"></a><span class="co">#&gt;   ..$ algorithm      : chr &quot;kmeans&quot;</span></span>
+<span id="cb16-46"><a href="#cb16-46" tabindex="-1"></a><span class="co">#&gt;   ..$ use_hvg        : logi TRUE</span></span>
+<span id="cb16-47"><a href="#cb16-47" tabindex="-1"></a><span class="co">#&gt;   ..$ hvg_column     : chr &quot;is_hvg&quot;</span></span>
+<span id="cb16-48"><a href="#cb16-48" tabindex="-1"></a><span class="co">#&gt;   ..$ hvg_rank_column: chr &quot;hvg_rank&quot;</span></span>
+<span id="cb16-49"><a href="#cb16-49" tabindex="-1"></a><span class="co">#&gt;   ..$ n_hvg          : num 100</span></span>
+<span id="cb16-50"><a href="#cb16-50" tabindex="-1"></a><span class="co">#&gt;   ..$ n_pcs          : num 5</span></span>
+<span id="cb16-51"><a href="#cb16-51" tabindex="-1"></a><span class="co">#&gt;   ..$ n_clusters     : int 7</span></span>
+<span id="cb16-52"><a href="#cb16-52" tabindex="-1"></a><span class="co">#&gt;   ..$ k              : num 20</span></span>
+<span id="cb16-53"><a href="#cb16-53" tabindex="-1"></a><span class="co">#&gt;   ..$ resolution     : num 1</span></span>
+<span id="cb16-54"><a href="#cb16-54" tabindex="-1"></a><span class="co">#&gt;   ..$ cluster_column : chr &quot;cluster&quot;</span></span>
+<span id="cb16-55"><a href="#cb16-55" tabindex="-1"></a><span class="co">#&gt;   ..$ pca_name       : chr &quot;PCA&quot;</span></span>
+<span id="cb16-56"><a href="#cb16-56" tabindex="-1"></a><span class="co">#&gt;  $ performDeconvolution      :List of 5</span></span>
+<span id="cb16-57"><a href="#cb16-57" tabindex="-1"></a><span class="co">#&gt;   ..$ flavour               : chr &quot;seurat&quot;</span></span>
+<span id="cb16-58"><a href="#cb16-58" tabindex="-1"></a><span class="co">#&gt;   ..$ reference_label_column: chr &quot;letter.idents&quot;</span></span>
+<span id="cb16-59"><a href="#cb16-59" tabindex="-1"></a><span class="co">#&gt;   ..$ label_column          : chr &quot;seurat_label&quot;</span></span>
+<span id="cb16-60"><a href="#cb16-60" tabindex="-1"></a><span class="co">#&gt;   ..$ score_column          : chr &quot;seurat_label_score&quot;</span></span>
+<span id="cb16-61"><a href="#cb16-61" tabindex="-1"></a><span class="co">#&gt;   ..$ cells_annotated       : int 78</span></span>
+<span id="cb16-62"><a href="#cb16-62" tabindex="-1"></a><span class="co">#&gt;  $ compareClusterCellTypes   :List of 3</span></span>
+<span id="cb16-63"><a href="#cb16-63" tabindex="-1"></a><span class="co">#&gt;   ..$ cluster_column  : chr &quot;cluster&quot;</span></span>
+<span id="cb16-64"><a href="#cb16-64" tabindex="-1"></a><span class="co">#&gt;   ..$ cell_type_column: chr &quot;seurat_label&quot;</span></span>
+<span id="cb16-65"><a href="#cb16-65" tabindex="-1"></a><span class="co">#&gt;   ..$ metadata_name   : chr &quot;cluster_cell_type_comparison&quot;</span></span></code></pre></div>
+</div>
+<div id="singler-alternative" class="section level1">
+<h1>SingleR alternative</h1>
+<p>The workflow above uses <code>flavour = &quot;seurat&quot;</code>. The same
+function can also be used with <code>flavour = &quot;singler&quot;</code>,
+provided that the reference is a <code>SummarizedExperiment</code> or
+<code>SingleCellExperiment</code> object with an annotation column in
+<code>colData()</code>.</p>
+<p>This chunk is not evaluated by default because the main vignette uses
+Seurat, but it shows the equivalent call for SingleR.</p>
+<div class="sourceCode" id="cb17"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" tabindex="-1"></a>reference_sce <span class="ot">&lt;-</span> Seurat<span class="sc">::</span><span class="fu">as.SingleCellExperiment</span>(reference)</span>
+<span id="cb17-2"><a href="#cb17-2" tabindex="-1"></a></span>
+<span id="cb17-3"><a href="#cb17-3" tabindex="-1"></a><span class="cf">if</span> (<span class="sc">!</span><span class="st">&quot;logcounts&quot;</span> <span class="sc">%in%</span> SummarizedExperiment<span class="sc">::</span><span class="fu">assayNames</span>(reference_sce)) {</span>
+<span id="cb17-4"><a href="#cb17-4" tabindex="-1"></a>  ref_logcounts <span class="ot">&lt;-</span> <span class="fu">get_seurat_assay_data</span>(reference, <span class="at">assay =</span> <span class="st">&quot;RNA&quot;</span>, <span class="at">layer =</span> <span class="st">&quot;data&quot;</span>)</span>
+<span id="cb17-5"><a href="#cb17-5" tabindex="-1"></a>  SummarizedExperiment<span class="sc">::</span><span class="fu">assay</span>(reference_sce, <span class="st">&quot;logcounts&quot;</span>) <span class="ot">&lt;-</span> ref_logcounts</span>
+<span id="cb17-6"><a href="#cb17-6" tabindex="-1"></a>}</span>
+<span id="cb17-7"><a href="#cb17-7" tabindex="-1"></a></span>
+<span id="cb17-8"><a href="#cb17-8" tabindex="-1"></a>SummarizedExperiment<span class="sc">::</span><span class="fu">colData</span>(reference_sce)<span class="sc">$</span>cell_type <span class="ot">&lt;-</span> reference<span class="sc">$</span>letter.idents</span>
+<span id="cb17-9"><a href="#cb17-9" tabindex="-1"></a></span>
+<span id="cb17-10"><a href="#cb17-10" tabindex="-1"></a>query <span class="ot">&lt;-</span> <span class="fu">performDeconvolution</span>(</span>
+<span id="cb17-11"><a href="#cb17-11" tabindex="-1"></a>  <span class="at">object =</span> query,</span>
+<span id="cb17-12"><a href="#cb17-12" tabindex="-1"></a>  <span class="at">reference =</span> reference_sce,</span>
+<span id="cb17-13"><a href="#cb17-13" tabindex="-1"></a>  <span class="at">flavour =</span> <span class="st">&quot;singler&quot;</span>,</span>
+<span id="cb17-14"><a href="#cb17-14" tabindex="-1"></a>  <span class="at">reference_label_column =</span> <span class="st">&quot;cell_type&quot;</span>,</span>
+<span id="cb17-15"><a href="#cb17-15" tabindex="-1"></a>  <span class="at">assay_name =</span> <span class="st">&quot;logcounts&quot;</span>,</span>
+<span id="cb17-16"><a href="#cb17-16" tabindex="-1"></a>  <span class="at">ref_assay_name =</span> <span class="st">&quot;logcounts&quot;</span>,</span>
+<span id="cb17-17"><a href="#cb17-17" tabindex="-1"></a>  <span class="at">label_column =</span> <span class="st">&quot;singler_label&quot;</span></span>
+<span id="cb17-18"><a href="#cb17-18" tabindex="-1"></a>)</span>
+<span id="cb17-19"><a href="#cb17-19" tabindex="-1"></a></span>
+<span id="cb17-20"><a href="#cb17-20" tabindex="-1"></a><span class="fu">table</span>(SummarizedExperiment<span class="sc">::</span><span class="fu">colData</span>(query)<span class="sc">$</span>singler_label)</span></code></pre></div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>
